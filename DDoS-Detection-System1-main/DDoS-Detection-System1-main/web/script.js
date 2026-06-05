@@ -1,0 +1,3 @@
+function enroll() {
+    alert("Enrolled!");
+}

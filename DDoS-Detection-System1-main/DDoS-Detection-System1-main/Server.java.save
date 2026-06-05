@@ -1,0 +1,126 @@
+import com.sun.net.httpserver.*;
+import java.io.*;
+import java.net.InetSocketAddress;
+import java.nio.file.*;
+import java.util.*;
+
+public class Server {
+
+    static Map<String, List<Long>> traffic = new HashMap<>();
+    static Set<String> blocked = new HashSet<>();
+    static int totalRequests = 0;
+    static final int WINDOW = 60;
+    static int logCounter = 0;
+
+    public static void main(String[] args) throws Exception {
+
+        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", 8080), 0);
+
+        server.createContext("/", new MainHandler());
+        server.createContext("/admin", new AdminHandler());
+
+        server.setExecutor(null);
+        server.start();
+
+        System.out.println("🚀 Server running...");
+    }
+
+    static class MainHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
+
+            String ip = t.getRemoteAddress().getAddress().getHostAddress()
+                    .replace("0:0:0:0:0:0:0:1", "127.0.0.1");
+
+            long now = System.currentTimeMillis();
+
+            traffic.putIfAbsent(ip, new ArrayList<>());
+            traffic.get(ip).add(now);
+
+            int count = traffic.get(ip).size();
+	    totalRequests++;
+           // 🌍 GLOBAL ATTACK DETECTION
+	    if (totalRequests > 100) {
+   		 log("🚨 GLOBAL ATTACK DETECTED (HIGH TRAFFIC)");
+		}
+
+            log("IP: " + ip + " Requests: " + count);
+
+            // 🔥 BURST ATTACK DETECTION
+            i (traffic.get(ip).size() > 5) {
+
+                int size = traffic.get(ip).size();
+
+                long last = traffic.get(ip).get(size - 1);
+                long prev = traffic.get(ip).get(size - 5);
+
+                long diff = (last - prev) / 1000;
+
+              
+           }
+
+            if (blocked.contains(ip)) {
+                send(t, "Access Denied", 403);
+                return;
+            }
+
+            String path = t.getRequestURI().getPath();
+
+            if (path.equals("/style.css")) {
+                sendFile(t, "web/style.css");
+                return;
+            }
+
+            if (path.equals("/script.js")) {
+                sendFile(t, "web/script.js");
+                return;
+            }
+
+            sendFile(t, "web/index.html");
+        }
+    }
+
+    static class AdminHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
+
+            String logs;
+            try {
+                logs = Files.readString(Paths.get("logs/log.txt"));
+            } catch (Exception e) {
+                logs = "No logs yet";
+            }
+
+            String response = "<html><body style='background:black;color:lime;'>"
+                    + "<h1>ADMIN DASHBOARD</h1>"
+                    + "<pre>" + logs + "</pre>"
+                    + "</body></html>";
+
+            send(t, response, 200);
+        }
+    }
+
+    static void sendFile(HttpExchange t, String file) throws IOException {
+        byte[] data = Files.readAllBytes(Paths.get(file));
+        t.sendResponseHeaders(200, data.length);
+        t.getResponseBody().write(data);
+        t.getResponseBody().close();
+    }
+
+    static void send(HttpExchange t, String msg, int code) throws IOException {
+        byte[] res = msg.getBytes();
+        t.sendResponseHeaders(code, res.length);
+        t.getResponseBody().write(res);
+        t.getResponseBody().close();
+    }
+
+    // 🔥 STABLE LOG SYSTEM
+    static void log(String msg) throws IOException {
+
+        logCounter++;
+
+        // every 10th request log (performance)
+        if (logCounter % 10 != 0 && !msg.contains("ATTACK")) return;
+
+        Files.write(Paths.get("logs/log.txt"), (msg + "\n").getBytes(),
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    }
+}
